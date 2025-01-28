@@ -1,26 +1,29 @@
-"use client"; // Mark as a Client Component
+"use client";
 
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react"; // Import the spinning loader icon
 
 const DownloadForm = () => {
   const [url, setUrl] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingButton, setLoadingButton] = useState<"mp4" | "mp3" | null>(
+    null
+  ); // Track which button is loading
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleDownload = async (format: "mp4" | "mp3") => {
     if (!url) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid YouTube URL.",
-        variant: "destructive",
-      });
+      setError("Please enter a valid YouTube URL");
       return;
     }
 
-    setIsLoading(true);
+    setLoadingButton(format); // Set the loading state for the clicked button
+    setError(null);
 
     try {
       const response = await fetch("/api/download", {
@@ -31,17 +34,34 @@ const DownloadForm = () => {
         body: JSON.stringify({ url, format }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to download");
-      }
-
       const data = await response.json();
 
+      if (!response.ok) {
+        // Handle specific error cases based on status code
+        switch (response.status) {
+          case 400:
+            throw new Error(
+              data.error ||
+                "Invalid request. Please check the URL and try again."
+            );
+          case 429:
+            throw new Error(
+              "You've reached the download limit. Please wait a while before trying again."
+            );
+          case 500:
+            throw new Error("Server error. Please try again later.");
+          default:
+            throw new Error(
+              data.error || "Failed to download. Please try again."
+            );
+        }
+      }
+
       // Handle the file download
-      const fileUrl = data.filePath; // Now it’s the URL path sent from the backend
+      const fileUrl = data.filePath;
       const link = document.createElement("a");
       link.href = fileUrl;
-      link.download = fileUrl.split("/").pop();
+      link.download = data.filename || fileUrl.split("/").pop();
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -54,13 +74,17 @@ const DownloadForm = () => {
       });
     } catch (error) {
       console.error(error);
+      const errorMessage =
+        error instanceof Error ? error.message : "An unexpected error occurred";
+      setError(errorMessage);
+
       toast({
         title: "Error",
-        description: "An error occurred while downloading. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setLoadingButton(null); // Reset loading state once download is complete
     }
   };
 
@@ -69,18 +93,48 @@ const DownloadForm = () => {
       <Input
         placeholder="Enter YouTube URL"
         value={url}
-        onChange={(e) => setUrl(e.target.value)}
+        onChange={(e) => {
+          setUrl(e.target.value);
+          setError(null); // Clear error when user starts typing
+        }}
+        className={error ? "border-red-500" : ""}
       />
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex gap-2">
-        <Button onClick={() => handleDownload("mp4")} disabled={isLoading}>
-          {isLoading ? "Downloading..." : "Download Video"}
+        <Button
+          onClick={() => handleDownload("mp4")}
+          disabled={loadingButton !== null}
+          className="flex-1"
+        >
+          {loadingButton === "mp4" ? (
+            <>
+              Downloading... <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+            </>
+          ) : (
+            "Download Video"
+          )}
         </Button>
+
         <Button
           onClick={() => handleDownload("mp3")}
-          disabled={isLoading}
+          disabled={loadingButton !== null}
           variant="secondary"
+          className="flex-1"
         >
-          {isLoading ? "Downloading..." : "Download Audio (MP3)"}
+          {loadingButton === "mp3" ? (
+            <>
+              Downloading... <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+            </>
+          ) : (
+            "Download Audio (MP3)"
+          )}
         </Button>
       </div>
     </div>
