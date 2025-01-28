@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { cleanupOldFiles } from "@/lib/fileCleanup";
 
 const downloadScriptPath = path.join(
   process.cwd(),
@@ -18,12 +19,16 @@ if (!fs.existsSync(publicTmpPath)) {
 
 export async function POST(req: Request) {
   try {
-    
+    // Only run cleanup at the start, not after download
+    cleanupOldFiles();
+
     const ip = req.headers.get("x-forwarded-for") || "unknown";
-    // Rate limiting
     const allowed = await checkRateLimit(ip);
     if (!allowed) {
-      return NextResponse.json({ error: "Rate limit exceeded. Please try again later." }, { status: 429 });
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 429 }
+      );
     }
 
     const body = await req.json();
@@ -46,7 +51,7 @@ export async function POST(req: Request) {
     const command = `python ${downloadScriptPath} ${url} ${format} best`;
 
     return new Promise((resolve, reject) => {
-      exec(command, { cwd: process.cwd() }, (error, stdout, stderr) => {
+      exec(command, { cwd: process.cwd() }, async (error, stdout, stderr) => {
         if (error) {
           console.error("Error executing Python script:", stderr);
           reject(new Error(`Failed to download media: ${stderr || stdout}`));
@@ -83,6 +88,7 @@ export async function POST(req: Request) {
 
         // Include both the URL path and the sanitized filename in the response
         const filename = path.basename(fullFilePath);
+
         resolve(
           NextResponse.json({
             filePath: urlPath,
