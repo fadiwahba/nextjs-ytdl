@@ -27,7 +27,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Validate format
     if (!["mp3", "mp4"].includes(format)) {
       return NextResponse.json(
         { error: "Invalid format. Supported formats are: mp3, mp4" },
@@ -45,7 +44,6 @@ export async function POST(req: Request) {
           return;
         }
 
-        // Look for the specific line containing the final file path
         const outputLines = stdout.split("\n");
         const savedFileLine = outputLines.find((line) =>
           line.startsWith("Download completed. File saved as:")
@@ -58,12 +56,10 @@ export async function POST(req: Request) {
           return;
         }
 
-        // Extract the file path from the output
         const fullFilePath = savedFileLine
           .replace("Download completed. File saved as:", "")
           .trim();
 
-        // Verify the file exists
         if (!fs.existsSync(fullFilePath)) {
           reject(
             new Error(`Downloaded file not found at path: ${fullFilePath}`)
@@ -71,12 +67,19 @@ export async function POST(req: Request) {
           return;
         }
 
-        // Convert the full filesystem path to a URL path
+        // Get the public URL path
         const publicPath = path.join(process.cwd(), "public");
         const relativePath = path.relative(publicPath, fullFilePath);
         const urlPath = "/" + relativePath.split(path.sep).join("/");
 
-        resolve(NextResponse.json({ filePath: urlPath }));
+        // Include both the URL path and the sanitized filename in the response
+        const filename = path.basename(fullFilePath);
+        resolve(
+          NextResponse.json({
+            filePath: urlPath,
+            filename: filename,
+          })
+        );
       });
     });
   } catch (err) {

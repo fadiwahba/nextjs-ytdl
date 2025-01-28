@@ -1,6 +1,23 @@
 import os
 import subprocess
 import sys
+import re
+
+def sanitize_filename(title):
+    """
+    Sanitize the filename by:
+    1. Replacing spaces and special chars with underscores
+    2. Removing any non-alphanumeric characters except underscores and hyphens
+    3. Limiting length to avoid path length issues
+    """
+    # Replace spaces and special chars with underscores
+    sanitized = re.sub(r'[^\w\-]', '_', title)
+    # Remove consecutive underscores
+    sanitized = re.sub(r'_+', '_', sanitized)
+    # Remove leading/trailing underscores
+    sanitized = sanitized.strip('_')
+    # Limit length to 50 chars (adjust if needed)
+    return sanitized[:50]
 
 def download_youtube_video(url, output_format, quality="best"):
     try:
@@ -8,8 +25,13 @@ def download_youtube_video(url, output_format, quality="best"):
         if not os.path.exists(tmp_dir):
             os.makedirs(tmp_dir)
 
-        # Set output filename based on format
-        output_filename = f"downloaded_{'audio' if output_format == 'mp3' else 'video'}.{output_format}"
+        # First, get the video title
+        title_command = ["yt-dlp", "--get-title", url]
+        video_title = subprocess.check_output(title_command).decode('utf-8').strip()
+        
+        # Sanitize the title and create filename
+        safe_title = sanitize_filename(video_title)
+        output_filename = f"{safe_title}.{output_format}"
         output_file = os.path.join(tmp_dir, output_filename)
         
         # Remove the file if it already exists
@@ -21,7 +43,7 @@ def download_youtube_video(url, output_format, quality="best"):
             "yt-dlp",
             url,
             "-o", output_file,
-            "--force-overwrites"  # Ensure we can overwrite existing files
+            "--force-overwrites"
         ]
 
         # Add format-specific options
@@ -29,10 +51,10 @@ def download_youtube_video(url, output_format, quality="best"):
             command.extend([
                 "--extract-audio",
                 "--audio-format", "mp3",
-                "--audio-quality", "0"  # Best quality
+                "--audio-quality", "0"
             ])
         elif output_format == "mp4":
-            command.extend(["-f", "best[ext=mp4]/best"])  # Prefer MP4 format
+            command.extend(["-f", "best[ext=mp4]/best"])
 
         # Execute the download
         subprocess.run(command, check=True)
