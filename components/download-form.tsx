@@ -73,8 +73,13 @@ const DownloadForm = () => {
     setLoadingButton(format);
     setError(null);
 
+    
     try {
-      const response = await fetch("/api/download", {
+      const apiEndpoint = process.env.NEXT_PUBLIC_DOWNLOAD_API_ENDPOINT;
+      if (!apiEndpoint) {
+        throw new Error("API endpoint is not defined");
+      }
+      const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, format }),
