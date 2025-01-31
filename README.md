@@ -1,5 +1,8 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## DEMO VIDEO
+[![Watch the video]([https://user-images.githubusercontent.com/USERNAME/VIDEO_ID.mp4](https://github.com/fadiwahba/nextjs-ytdl/blob/main/ytdl-demo.mp4))]([https://user-images.githubusercontent.com/USERNAME/VIDEO_ID.mp4](https://github.com/fadiwahba/nextjs-ytdl/blob/main/ytdl-demo.mp4))
+
 ## Getting Started
 
 First, run the development server:
