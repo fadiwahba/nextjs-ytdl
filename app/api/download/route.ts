@@ -1,4 +1,6 @@
-// route.ts
+// THIS FILE IS JUST AN EXAMPLE. THE ACTAUAL API ENDPOINT IS IMPLEMENTED IN A SEPARATE REPORITORY. 
+// THE API ENDPOINT IS NOT PUBLICLY AVAILABLE.
+
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rateLimit";
 
