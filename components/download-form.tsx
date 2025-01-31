@@ -13,9 +13,17 @@ const YOUTUBE_URL_PATTERN =
 type DownloadFormat = "mp4" | "mp3";
 
 interface DownloadResponse {
-  filePath: string;
-  filename?: string;
-  error?: string;
+  success: boolean;
+  message: string;
+  data: {
+    url: string;
+    format: string;
+    downloadUrl: string;
+    fileName: string;
+    metadata: {
+      format: string;
+    };
+  };
 }
 
 const DownloadForm = () => {
@@ -24,9 +32,10 @@ const DownloadForm = () => {
     null
   );
   const [error, setError] = useState<string | null>(null);
+  const [downloadLink, setDownloadLink] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const validateUrl = (url: string): boolean => {
+  const validateYouTubeUrl = (url: string): boolean => {
     if (!url.trim()) {
       setError("Please enter a URL");
       return false;
@@ -49,40 +58,37 @@ const DownloadForm = () => {
     }, 100);
   };
 
-  const downloadFile = async (
-    fileUrl: string,
-    filename?: string
-  ): Promise<boolean> => {
-    try {
-      const link = document.createElement("a");
-      link.href = fileUrl;
-      link.download = filename || fileUrl.split("/").pop() || "download";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      return true;
-    } catch (error) {
-      console.error("Download file error:", error);
-      return false;
-    }
+  const downloadFile = (url: string) => {
+    setDownloadLink(url);
+    return true;
   };
 
   const handleDownload = async (format: DownloadFormat) => {
-    if (!validateUrl(url)) return;
+    if (!validateYouTubeUrl(url)) return;
 
     setLoadingButton(format);
     setError(null);
 
     try {
-      const response = await fetch("/api/download", {
+      const apiEndpoint = process.env.NEXT_PUBLIC_DOWNLOAD_API_ENDPOINT;
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY;
+
+      if (!apiEndpoint) {
+        throw new Error("API endpoint is not defined");
+      }
+
+      const response = await fetch(apiEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, format }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey || "",
+        },
+        body: JSON.stringify({ videoUrl: url, mediaType: `.${format}` }),
       });
 
-      const data: DownloadResponse = await response.json();
+      const responseData: DownloadResponse = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok || !responseData.success) {
         const errorMessages: Record<number, string> = {
           400: "Invalid request. Please check the URL and try again.",
           429: "Download limit reached. Please try again later.",
@@ -90,19 +96,21 @@ const DownloadForm = () => {
         };
 
         throw new Error(
-          data.error ||
+          responseData.message ||
             errorMessages[response.status] ||
             "Failed to download. Please try again."
         );
       }
 
       // Wait for the download to start before showing success toast
-      const downloadSuccess = await downloadFile(data.filePath, data.filename);
+      const baseUrl = apiEndpoint.split("/api/download")[0];
+      const downloadUrl = `${baseUrl}${responseData.data.downloadUrl}`;
+      const downloadSuccess = downloadFile(downloadUrl);
 
       if (downloadSuccess) {
         showToast(
           "success",
-          `Your ${format === "mp4" ? "video" : "audio"} download has completed`
+          `Your ${responseData.data.metadata.format} download has completed`
         );
       } else {
         throw new Error("Failed to initiate download");
@@ -130,44 +138,59 @@ const DownloadForm = () => {
   };
 
   return (
-    <div className="space-y-4 max-w-md mx-auto">
-      <Input
-        placeholder="Enter YouTube URL"
-        value={url}
-        onChange={(e) => {
-          setUrl(e.target.value);
-          setError(null);
-        }}
-        className={error ? "border-red-500" : ""}
-        aria-label="YouTube URL input"
-        disabled={loadingButton !== null}
-      />
+    <>
+      <div className="space-y-4 max-w-md mx-auto">
+        <Input
+          placeholder="Enter YouTube URL"
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            setError(null);
+          }}
+          className={error ? "border-red-500" : ""}
+          aria-label="YouTube URL input"
+          disabled={loadingButton !== null}
+        />
 
-      {error && (
-        <Alert variant="destructive" role="alert">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+        {error && (
+          <Alert variant="destructive" role="alert">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      <div className="flex gap-2">
-        {(["mp4", "mp3"] as const).map((format) => (
-          <Button
-            key={format}
-            onClick={() => handleDownload(format)}
-            disabled={loadingButton !== null}
-            className={`flex-1 ${
-              format === "mp4"
-                ? "bg-purple-600 hover:bg-purple-400"
-                : "bg-orange-600 hover:bg-orange-400"
-            }`}
-            aria-label={`Download as ${format}`}
-          >
-            {formatLabel(format)}
-          </Button>
-        ))}
+        <div className="flex gap-2">
+          {(["mp4", "mp3"] as const).map((format) => (
+            <Button
+              key={format}
+              onClick={() => handleDownload(format)}
+              disabled={loadingButton !== null}
+              className={`flex-1 ${
+                format === "mp4"
+                  ? "bg-purple-600 hover:bg-purple-400"
+                  : "bg-orange-600 hover:bg-orange-400"
+              }`}
+              aria-label={`Download as ${format}`}
+            >
+              {formatLabel(format)}
+            </Button>
+          ))}
+        </div>
       </div>
-    </div>
+      {downloadLink && (
+        <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+          <p className="text-sm text-gray-600 mb-2">Your download is ready:</p>
+          <a
+            href={downloadLink}
+            className="text-blue-500 hover:text-blue-700 underline break-all"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {downloadLink}
+          </a>
+        </div>
+      )}
+    </>
   );
 };
 
